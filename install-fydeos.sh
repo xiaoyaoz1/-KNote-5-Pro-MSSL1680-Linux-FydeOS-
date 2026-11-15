@@ -16,30 +16,40 @@ mkdir -p /lib/firmware/silead
 cp "$SCRIPT_DIR/firmware/mssl1680.fw" /lib/firmware/silead/mssl1680.fw
 chmod 644 /lib/firmware/silead/mssl1680.fw
 
-echo "3. 安装坐标修正脚本与 Upstart 开机自启任务..."
+echo "3. 安装全屏校准与抗抖动守护脚本..."
 mkdir -p /usr/local/bin
-cp "$SCRIPT_DIR/scripts/fix-knote5-touch.py" /usr/local/bin/fix-knote5-touch.py
-chmod 755 /usr/local/bin/fix-knote5-touch.py
+cp "$SCRIPT_DIR/scripts/silead-smooth-touch.py" /usr/local/bin/silead-smooth-touch.py
+chmod 755 /usr/local/bin/silead-smooth-touch.py
 
 cat << 'CONF' > /etc/init/fix-silead-touch.conf
-description "Fix Silead touchscreen max ABS coordinates for KNote 5 Pro"
+description "KNote 5 Pro Silead Touchscreen Anti-Jitter & Bounds Service"
 
-start on started ui
-task
+start on started boot-services
+stop on stopping boot-services
+respawn
+respawn limit 15 5
 
-script
-  sleep 2
-  /usr/bin/python3 /usr/local/bin/fix-knote5-touch.py
-  udevadm trigger --subsystem-match=input --action=change
+pre-start script
+  modprobe uinput || true
+  if ! grep -q "silead_ts" /sys/class/input/event*/device/name 2>/dev/null; then
+    modprobe -r silead 2>/dev/null || true
+    modprobe silead || true
+  fi
+  for i in $(seq 1 30); do
+    grep -q "silead_ts" /sys/class/input/event*/device/name 2>/dev/null && break
+    sleep 0.5
+  done
 end script
+
+exec /usr/bin/python3 /usr/local/bin/silead-smooth-touch.py >> /var/log/silead-touch.log 2>&1
 CONF
 
-echo "4. 重载驱动并应用校准..."
+echo "4. 加载驱动与 uinput 模块并启动服务..."
 modprobe -r silead 2>/dev/null || true
 modprobe silead
+modprobe uinput
 sleep 1
-/usr/bin/python3 /usr/local/bin/fix-knote5-touch.py
-udevadm trigger --subsystem-match=input --action=change
 initctl reload-configuration
+restart fix-silead-touch 2>/dev/null || start fix-silead-touch
 
-echo "完成！全屏触摸已激活。"
+echo "完成！KNote 5 Pro 全屏精准与抗抖动触控已激活。"
