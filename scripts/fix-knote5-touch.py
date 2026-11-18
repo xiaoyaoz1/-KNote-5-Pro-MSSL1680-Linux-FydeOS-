@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
 Alldocube KNote 5 Pro (Silead MSSL1680) Touchscreen Range Fix
-Overrides the default 4095x4095 ABS max axis values to match the actual 1982x1527 panel output.
+Overrides the default 4095x4095 ABS max axis values to match the actual 2048x1536 panel output.
 """
 import glob
 import fcntl
 import struct
 
-MAX_X = 1982
-MAX_Y = 1527
+MAX_X = 2048
+MAX_Y = 1536
 
 def fix_touch():
     for path in glob.glob("/sys/class/input/event*/device/name"):
